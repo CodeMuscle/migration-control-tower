@@ -1,0 +1,9 @@
+{
+  "//": "Root tsconfig for editors/IDE only. Each package has its own build tsconfig.",
+  "extends": "@migrationtower/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "files": [],
+  "exclude": ["node_modules", "**/dist", "**/.next", "**/.turbo"]
+}
