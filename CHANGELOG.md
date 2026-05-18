@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+- feat(api): Tenant + Migration Projects modules (blueprint Modules 2 & 3)
+  - **Tenant**: `GET /v1/tenant`, `PATCH /v1/tenant/settings`,
+    `GET /v1/tenant/features` (process-wide 1-min TTL cache, singleton
+    `FeatureCache`). Emits `tenant.settings.updated` and
+    `tenant.feature.updated` via the EventBus stub.
+  - **Migration Projects**: `POST /v1/migration-projects` (per-tenant
+    `project_code` uniqueness → `CONFLICT`); `GET /v1/migration-projects`
+    (filters status/stage/ownerUserId/search, **keyset/cursor** pagination,
+    not offset); `GET /v1/migration-projects/:id` (project + last 10 activity
+    - summary: `lastBatchStatus`, `openIssuesCount` placeholder until Module
+      8); `POST /:id/advance-stage` (server-enforced state machine); `GET
+/:id/activity` (cursor paginated). Emits `migration_project.created`,
+      `.stage_changed`, `.blocked`, `.completed`.
+  - **Stage machine** (`stage-machine.ts`, pure/unit-testable): setup →
+    ingestion → mapping → validation → dry_run → cutover → complete, with a
+    `blocked` status side-branch from any stage and resume; illegal moves →
+    `CONFLICT`. `advance-stage` writes `migration_stage_history` + a
+    `project_activity` row in one transaction.
+  - **Project members**: `POST /:id/members`, `DELETE /:id/members/:memberId`
+    (tenant-internal RBAC; customer-portal magic-link auth is later).
+  - Per-endpoint Pino structured logging (`tenant_id`, `user_id`,
+    `project_id`).
+  - Contracts extended (cursor list/detail/summary/activity/members/
+    advance-stage incl. `blocked`).
+  - Integration tests: Vitest + testcontainers Postgres against the committed
+    migrations — tenant-scoping isolation (cross-tenant read → 404), stage
+    transition rejection, per-tenant `project_code` uniqueness. 3/3 pass.
+
 - feat(api): Module 3 — NestJS 10 API service (`services/api`)
   - NestJS 10 on Fastify (`@nestjs/platform-fastify`), ESM, built/run via the
     Nest CLI; serves `:4000`.

@@ -11,7 +11,7 @@
     "start": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
     "type-check": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"@migrationtower/api: no tests yet\"",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
@@ -36,8 +36,10 @@
     "@migrationtower/tsconfig": "workspace:*",
     "@nestjs/cli": "^10.4.5",
     "@nestjs/schematics": "^10.1.4",
+    "@testcontainers/postgresql": "^10.13.2",
     "@types/node": "20",
     "pino-pretty": "^11.2.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.4"
   }
 }
