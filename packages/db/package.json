@@ -2,24 +2,46 @@
   "name": "@migrationtower/db",
   "version": "0.0.0",
   "private": true,
-  "description": "Database client, schema, and migrations (every table is tenant-scoped).",
+  "description": "Database client, Prisma schema, and migrations (every business table is tenant-scoped).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
-    "dist"
+    "dist",
+    "prisma"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
+    "migrate": "prisma migrate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset",
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio",
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
-    "type-check": "tsc -p tsconfig.json --noEmit",
+    "type-check": "prisma generate && tsc -p tsconfig.json --noEmit",
     "test": "echo \"@migrationtower/db: no tests yet\"",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
   },
   "devDependencies": {
     "@migrationtower/tsconfig": "workspace:*",
     "@types/node": "20",
+    "prisma": "^5.22.0",
+    "tsx": "^4.16.2",
     "typescript": "^5.4.5"
   }
 }

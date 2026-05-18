@@ -3,23 +3,23 @@
 This directory is the **single source of truth** for the Customer Migration Control Tower
 system design. Read everything here before implementing any module.
 
-## Expected documents
+## Documents
 
-| File                      | Purpose                                                                    | Status                  |
-| ------------------------- | -------------------------------------------------------------------------- | ----------------------- |
-| `lld.md` / `lld.docx`     | Low-Level Design: the 14 modules, their responsibilities, sequence flows   | ⚠️ **Not yet supplied** |
-| `database-blueprint.docx` | DB schema, multi-tenant model, the canonical API response **envelope**     | ⚠️ **Not yet supplied** |
-| `tech-stack.csv`          | Authoritative tech-stack matrix (layer → technology → version → rationale) | ⚠️ **Not yet supplied** |
+| File                      | Purpose                                                                  | Status      |
+| ------------------------- | ------------------------------------------------------------------------ | ----------- |
+| `lld.docx`                | Low-Level Design: the 14 modules, their responsibilities, sequence flows | ✅ Supplied |
+| `database-blueprint.docx` | DB schema, multi-tenant model, the canonical API response **envelope**   | ✅ Supplied |
+| `tech-stack.csv`          | Authoritative tech-stack matrix (layer → recommended stack → rationale)  | ✅ Supplied |
 
-## ⚠️ Important: bootstrap was done without the source docs
+## Reconciled (2026-05-17)
 
-At the time the monorepo was bootstrapped (Module 1), the three documents above were
-**not present in the repository**. The scaffold, the module list, the API envelope, and
-the tech stack recorded in [`/CLAUDE.md`](../../CLAUDE.md) were therefore derived from the
-**Module 1 task specification itself**, not from the design docs.
+The bootstrap (Module 1) was scaffolded before these documents existed, so the
+module list, API envelope, and tech stack in [`/CLAUDE.md`](../../CLAUDE.md) were
+inferred from the Module 1 brief. The repo has since been reconciled against the
+documents above: `CLAUDE.md`, `packages/contracts` (the envelope type and tenant
+context), and the module list now match `/docs/design/` verbatim. The
+inferred-decisions file (`ASSUMPTIONS.md`) was resolved and removed; see
+[`/CHANGELOG.md`](../../CHANGELOG.md).
 
-See [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) for the full list of inferred decisions that must
-be reconciled once the real LLD / database-blueprint / tech-stack land here.
-
-When the real documents arrive, drop them in this folder and run a reconciliation pass:
-update `CLAUDE.md`, `packages/contracts` (the envelope type), and the module list to match.
+These documents remain the **single source of truth**. If they change, they win —
+update `CLAUDE.md` and `packages/contracts` to match.

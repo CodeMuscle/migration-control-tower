@@ -35,6 +35,14 @@
     "typescript": "^5.4.5"
   },
   "prettier": "@migrationtower/prettier-config",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild"
+    ]
+  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix --max-warnings=0",
