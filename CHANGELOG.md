@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+- feat(api): Module 3 — NestJS 10 API service (`services/api`)
+  - NestJS 10 on Fastify (`@nestjs/platform-fastify`), ESM, built/run via the
+    Nest CLI; serves `:4000`.
+  - Global concerns: success-envelope interceptor; `AllExceptionsFilter`
+    (canonical error envelope + ApiErrorCode taxonomy, incl. ZodError →
+    VALIDATION_FAILED); `ZodValidationPipe` (validates contracts' Zod DTOs —
+    no class-validator); `nestjs-pino` with `request_id`/`tenant_id` (+ OTel
+    `trace_id`) on every line; OpenTelemetry auto-instrumentation (HTTP/PG/
+    Redis, console exporter). Fastify owns `request.id` (honours
+    `x-request-id`) so logs and envelopes correlate.
+  - Auth: Clerk (`@clerk/backend`) global `AuthGuard` — Bearer → Clerk user →
+    local `users` (by email) → `X-Tenant-Id` vs active `memberships`;
+    `@Public()` / `@SkipTenantCheck()` opt-outs. Rejections use
+    AUTH_REQUIRED / TENANT_FORBIDDEN.
+  - `common` module (the brief's `@app/api/common`): request-scoped
+    `TenantContextService`, `PrismaService` wrapping `prismaForTenant`,
+    in-memory `EventBus` stub.
+  - Identity module (blueprint Module 1): `POST /v1/auth/invitations`,
+    `POST /v1/auth/invitations/accept`, `GET /v1/me`. Plus `GET /health`
+    (public) and `GET /v1/_introspect` (echoes resolved TenantContext).
+  - tsconfig/eslint per-package deviations for NestJS DI documented in
+    CLAUDE.md. New env: `CLERK_SECRET_KEY`, `LOG_LEVEL`, `OTEL_SERVICE_NAME`.
+  - Verified end-to-end: server boots `:4000`; `/health` → success envelope;
+    unauthed `/v1/me` → 401 AUTH_REQUIRED envelope; invalid token →
+    AUTH_REQUIRED; **and** a real Clerk JWT + `X-Tenant-Id` → `/v1/me`
+    returns the seeded user + tenant + roles in the success envelope.
+  - Seed: `SEED_DEMO_EMAIL` overrides the demo operator email (so it can be
+    matched to a Clerk user's primary email); seed log now prints tenant/user
+    ids.
+
 - feat(db,contracts,ui): Module 2 — database layer + shared contracts
   - **packages/db**: Prisma 5 (`multiSchema` preview, single `public` schema).
     Models for all 20 tables of blueprint Modules 1–6 (Identity, Tenant,

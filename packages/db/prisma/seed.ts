@@ -8,6 +8,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// The demo operator's email. Override to match your Clerk user's primary
+// email so the AuthGuard (Clerk email → local user) resolves to this seeded
+// owner: `SEED_DEMO_EMAIL=you@example.com pnpm --filter @migrationtower/db seed`.
+const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? "demo@migrationtower.dev";
+
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: "acme" },
@@ -35,10 +40,10 @@ async function main() {
   });
 
   const user = await prisma.user.upsert({
-    where: { email: "demo@migrationtower.dev" },
+    where: { email: DEMO_EMAIL },
     update: {},
     create: {
-      email: "demo@migrationtower.dev",
+      email: DEMO_EMAIL,
       fullName: "Demo Operator",
       status: "active",
     },
@@ -80,7 +85,9 @@ async function main() {
     });
   }
 
-  console.log(`Seeded tenant=${tenant.slug} user=${user.email} + global CRM destination schema v1`);
+  console.log(
+    `Seeded tenant=${tenant.slug} (id=${tenant.id}) user=${user.email} (id=${user.id}) role=owner + global CRM destination schema v1`,
+  );
 }
 
 main()

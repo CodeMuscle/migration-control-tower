@@ -58,6 +58,32 @@ are now decided and in code:
 - **UI = Tailwind + shadcn/ui** in `packages/ui` (shared `tailwind-preset`,
   `cn()` helper, copy-in primitives). Apps consume the preset + `styles.css`.
 
+**Realized choices (Module 3).** `services/api`:
+
+- **Backend = NestJS 10 + Fastify** (`@nestjs/platform-fastify`). Built/run
+  with the Nest CLI (`nest build` / `nest start --watch`); `pnpm --filter
+@migrationtower/api dev` serves `:4000`.
+- **Auth = Clerk** (`@clerk/backend`). The global `AuthGuard` is the
+  implementation of "Tenant context resolution": Bearer → Clerk user → local
+  `users` (by email) → `X-Tenant-Id` validated vs active `memberships`.
+  `@Public()` opts out (e.g. `/health`); `@SkipTenantCheck()` allows
+  authenticated-but-no-membership (accept-invitation).
+- **Globals**: success interceptor (envelope), `AllExceptionsFilter` (error
+  envelope + taxonomy), `ZodValidationPipe` (Zod DTOs from contracts — there
+  are no class-validator classes), `nestjs-pino` (request_id + tenant_id +
+  OTel trace_id on every line), OpenTelemetry auto-instrumentation (console
+  exporter for now). Fastify owns `request.id` (honours inbound
+  `x-request-id`) so logs and envelopes share one id.
+- **tsconfig deviation (framework requirement, documented):**
+  `services/api/tsconfig.json` turns off `verbatimModuleSyntax`/
+  `isolatedModules`/`incremental` and turns on `emitDecoratorMetadata`/
+  `experimentalDecorators` — NestJS DI needs runtime type metadata. It stays
+  ESM (NodeNext, `.js` specifiers) so it can import the ESM-only
+  `@migrationtower/contracts` and `/db` on Node 20. Package-local
+  `.eslintrc.cjs` disables `consistent-type-imports` for the same reason.
+- New env: `CLERK_SECRET_KEY` (required for authed routes), `LOG_LEVEL`,
+  `OTEL_SERVICE_NAME` (see `.env.example`).
+
 ## Repository layout
 
 ```
