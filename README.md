@@ -10,9 +10,9 @@ auditable trail, and an embeddable customer portal. **Migration Tower is that
 middle.**
 
 > ⚠️ **Status: bootstrapping (Module 1).** The monorepo, tooling, and shared
-> contracts exist; packages are intentionally empty placeholders. Bootstrap ran
-> before the design docs were available — see
-> [`docs/design/ASSUMPTIONS.md`](docs/design/ASSUMPTIONS.md).
+> contracts exist; packages are intentionally empty placeholders. The bootstrap
+> has been reconciled against the canonical design docs in
+> [`docs/design/`](docs/design/) — see [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
