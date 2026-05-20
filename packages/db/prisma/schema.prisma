@@ -36,15 +36,15 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  memberships         Membership[]         @relation("MembershipUser")
-  membershipsInvited  Membership[]         @relation("MembershipInvitedBy")
-  invitationsSent     Invitation[]         @relation("InvitationInvitedBy")
-  projectsOwned       MigrationProject[]   @relation("ProjectOwner")
-  stageChanges        MigrationStageHistory[] @relation("StageChangedBy")
-  projectMemberships  ProjectMember[]      @relation("ProjectMemberUser")
-  activities          ProjectActivity[]    @relation("ActivityActor")
-  uploads             SourceUpload[]       @relation("UploadUploadedBy")
-  mappingVersionsPub  MappingVersion[]     @relation("MappingVersionPublishedBy")
+  memberships        Membership[]            @relation("MembershipUser")
+  membershipsInvited Membership[]            @relation("MembershipInvitedBy")
+  invitationsSent    Invitation[]            @relation("InvitationInvitedBy")
+  projectsOwned      MigrationProject[]      @relation("ProjectOwner")
+  stageChanges       MigrationStageHistory[] @relation("StageChangedBy")
+  projectMemberships ProjectMember[]         @relation("ProjectMemberUser")
+  activities         ProjectActivity[]       @relation("ActivityActor")
+  uploads            SourceUpload[]          @relation("UploadUploadedBy")
+  mappingVersionsPub MappingVersion[]        @relation("MappingVersionPublishedBy")
 
   @@map("users")
   @@schema("public")
@@ -120,8 +120,30 @@ model Tenant {
   transformRules      TransformRule[]
   mappingVersions     MappingVersion[]
   mappingTemplates    MappingTemplate[]
+  idempotencyKeys     IdempotencyKey[]
 
   @@map("tenants")
+  @@schema("public")
+}
+
+// Idempotency replay store for mutating workflows (e.g. uploads/presign).
+// (tenant_id, idempotency_key) -> the original response; honoured until
+// expires_at (24h) then ignored/swept. Not one of the blueprint's six
+// modules — a cross-cutting Module-4 support table.
+model IdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key") @db.Text
+  endpoint       String   @db.VarChar(120)
+  response       Json     @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
   @@schema("public")
 }
 
