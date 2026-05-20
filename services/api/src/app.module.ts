@@ -6,6 +6,7 @@ import { CommonModule } from "./common/common.module.js";
 import { TENANT_CONTEXT_KEY } from "./common/tenant-context.js";
 import { HealthController } from "./health/health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
+import { IngestionModule } from "./ingestion/ingestion.module.js";
 import { IntrospectController } from "./introspect/introspect.controller.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { TenantModule } from "./tenant/tenant.module.js";
@@ -36,6 +37,7 @@ const isDev = process.env.NODE_ENV !== "production";
     IdentityModule,
     TenantModule,
     ProjectsModule,
+    IngestionModule,
   ],
   controllers: [HealthController, IntrospectController],
 })

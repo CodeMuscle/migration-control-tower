@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+- feat(api,db): Source Ingestion (blueprint Module 4)
+  - **S3/MinIO** (`@aws-sdk/client-s3` + presigner): 15-min presigned PUT,
+    HEAD verification, key pattern
+    `tenants/{tenant_id}/projects/{project_id}/uploads/{upload_id}/{filename}`.
+  - Upload lifecycle: `POST /v1/projects/:projectId/uploads/presign`
+    (per-tenant size quota from `feature_entitlements`, pending
+    `source_uploads` row, presigned URL), `…/uploads/complete` (HEAD verify →
+    `source_uploads`=uploaded → `source_batches`=queued → enqueue
+    `upload-processing` BullMQ job with the **exact** blueprint payload
+    `{tenantId,projectId,batchId,uploadId,objectKey,sourceType}`),
+    `GET /v1/projects/:projectId/sources` (data sources + latest batch
+    status), `GET /v1/source-batches/:batchId`.
+  - **Idempotency-Key** on presign: `idempotency_keys` table (new Prisma
+    model + migration), `(tenant_id, idempotency_key)` → response, 24h TTL,
+    cached replay.
+  - **SSE** `GET /v1/source-batches/:batchId/events`: emits a `snapshot`
+    frame (current status — so the queued state is visible even if you
+    connect after `complete`) then streams `source.batch.*` events for that
+    batch via the EventBus stub. Bypasses the success-envelope interceptor
+    (`@SkipEnvelope()`).
+  - Emits `source.upload.registered`, `source.upload.completed`,
+    `source.batch.created`.
+  - Verified end-to-end against **real MinIO + Redis + Postgres**: presign →
+    real HTTP PUT to MinIO → idempotent replay → complete → batch=queued →
+    BullMQ job present with exact contract payload → SSE snapshot=queued.
+    Existing integration tests still 3/3 (migration chain applies cleanly).
+
 - feat(api): Tenant + Migration Projects modules (blueprint Modules 2 & 3)
   - **Tenant**: `GET /v1/tenant`, `PATCH /v1/tenant/settings`,
     `GET /v1/tenant/features` (process-wide 1-min TTL cache, singleton
@@ -10,11 +37,10 @@
   - **Migration Projects**: `POST /v1/migration-projects` (per-tenant
     `project_code` uniqueness → `CONFLICT`); `GET /v1/migration-projects`
     (filters status/stage/ownerUserId/search, **keyset/cursor** pagination,
-    not offset); `GET /v1/migration-projects/:id` (project + last 10 activity
-    - summary: `lastBatchStatus`, `openIssuesCount` placeholder until Module
-      8); `POST /:id/advance-stage` (server-enforced state machine); `GET
+    not offset); `GET /v1/migration-projects/:id` (project + last 10 activity - summary: `lastBatchStatus`, `openIssuesCount` placeholder until Module
+    8); `POST /:id/advance-stage` (server-enforced state machine); `GET
 /:id/activity` (cursor paginated). Emits `migration_project.created`,
-      `.stage_changed`, `.blocked`, `.completed`.
+    `.stage_changed`, `.blocked`, `.completed`.
   - **Stage machine** (`stage-machine.ts`, pure/unit-testable): setup →
     ingestion → mapping → validation → dry_run → cutover → complete, with a
     `blocked` status side-branch from any stage and resume; illegal moves →

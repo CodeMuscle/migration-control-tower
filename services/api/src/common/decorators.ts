@@ -12,3 +12,11 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 export const SKIP_TENANT_CHECK_KEY = "auth:skipTenantCheck";
 export const SkipTenantCheck = () => SetMetadata(SKIP_TENANT_CHECK_KEY, true);
+
+/**
+ * Opt a handler out of the success-envelope interceptor — for streaming
+ * responses (SSE) where each emission must be the raw event, not
+ * `{ data, meta }`.
+ */
+export const SKIP_ENVELOPE_KEY = "response:skipEnvelope";
+export const SkipEnvelope = () => SetMetadata(SKIP_ENVELOPE_KEY, true);

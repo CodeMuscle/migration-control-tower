@@ -10,9 +10,12 @@ import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { AllExceptionsFilter } from "./all-exceptions.filter.js";
 import { EventBus } from "./event-bus.js";
 import { FeatureCache } from "./feature-cache.js";
+import { IdempotencyService } from "./idempotency.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { ResponseInterceptor } from "./response.interceptor.js";
+import { S3Service } from "./s3.service.js";
 import { TenantContextService } from "./tenant-context.js";
+import { UploadQueue } from "./upload-queue.js";
 
 @Global()
 @Module({
@@ -21,9 +24,20 @@ import { TenantContextService } from "./tenant-context.js";
     PrismaService,
     EventBus,
     FeatureCache,
+    IdempotencyService,
+    S3Service,
+    UploadQueue,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
-  exports: [TenantContextService, PrismaService, EventBus, FeatureCache],
+  exports: [
+    TenantContextService,
+    PrismaService,
+    EventBus,
+    FeatureCache,
+    IdempotencyService,
+    S3Service,
+    UploadQueue,
+  ],
 })
 export class CommonModule {}
