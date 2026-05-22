@@ -2,6 +2,61 @@
 
 ## [Unreleased]
 
+- feat(api,contracts): Schema Registry + Mapping (blueprint Modules 5 & 6)
+  - **Schema Registry**:
+    - `GET /v1/projects/:projectId/source-schema` — latest non-failed source
+      snapshot (skips the `version=-1` sentinel the parse worker writes on
+      failure).
+    - `GET /v1/destination-schemas/:productType/active` — tenant-scoped row
+      wins over the global fallback (uses the base prisma so global
+      `tenantId IS NULL` rows are visible).
+    - `POST /v1/projects/:projectId/source-schema/refresh` — creates a
+      `retry` batch for the latest upload and enqueues the
+      `upload-processing` job. Idempotent: re-calls collapse onto an
+      existing in-flight retry batch (BullMQ also dedupes by jobId).
+  - **Mapping**:
+    - `GET /v1/projects/:projectId/mappings` — drafts + unresolved
+      destination fields (set diff against the destination schema) +
+      template suggestions (filtered by `targetProductType`, and by
+      `sourceSystemName` when the project has a `data_sources` row with an
+      `external_system_name`) + the available transform rules.
+    - `PUT /v1/projects/:projectId/mappings` — bulk upsert. Validates that
+      `sourceSnapshotId` belongs to the project and the
+      `destinationSchemaId` is active for this tenant. Each `transform`
+      mapping must reference a known `transformRuleId`. The replacement
+      is a `deleteMany` → `createMany` in one transaction, scoped to the
+      `(project, snapshot, dest)` tuple.
+    - `POST /v1/projects/:projectId/mappings/publish` — `If-Match` header
+      carries the current draft fingerprint (max draft `updatedAt`); a
+      mismatch returns `CONFLICT` (stale draft). The transaction takes a
+      `SELECT … FOR UPDATE` lock on the project row before reading
+      `MAX(versionNumber)`, so two concurrent publishes can't pick the
+      same monotonic version.
+    - `GET /v1/projects/:projectId/mappings/versions` — keyset (cursor)
+      paginated.
+    - `GET /v1/projects/:projectId/mappings/diff?from=&to=` — added /
+      changed / removed by `destinationFieldKey`, with the full `from`
+      and `to` mapping rows on each entry.
+  - **Built-in transform rules** (per-tenant, lazy-upserted on first GET
+    or PUT): `trim`, `uppercase`, `lowercase`, `concat`, `date_parse`,
+    `phone_normalize`. Per-rule config schemas live in
+    `@migrationtower/contracts` (`MappingDTO.TransformRuleConfigSchemas`)
+    so the SDK + UI can validate before the API does.
+  - Domain events: `mapping.draft.updated`, `mapping.version.published`,
+    `schema.source_snapshot.refreshed`. (`mapping.template.applied` is
+    in `DOMAIN_EVENTS` for when a templating endpoint lands.)
+  - Per-endpoint Pino structured logging
+    (`tenant_id`/`user_id`/`project_id`/`mappingVersionId`).
+  - **Integration test**: publish v1 (direct mappings) → edit drafts
+    (remove one, change one to `transform: uppercase`, add one) →
+    publish v2 → `diff(from=1, to=2)` returns the expected added /
+    changed / removed sets. Existing 3 tests still pass. Worker test
+    still passes. 4 API tests + 1 worker test, all green.
+  - **Skipped (per brief's "optional")**: the `schema_fields` helper
+    table. Inferred columns live in `source_schema_snapshots.schema_json`
+    which is queryable enough for the frontend; the helper table can be
+    added later behind an async populator job without breaking callers.
+
 - feat(worker,api,contracts): Module 6 — BullMQ worker layer + upload parse
   - **`services/common`** (`@migrationtower/services-common`): shared
     `createBaseWorker()` factory implementing the patterns the brief calls

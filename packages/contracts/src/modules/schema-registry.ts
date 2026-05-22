@@ -34,9 +34,14 @@ export const DestinationSchemaResponseSchema = z.object({
 });
 export type DestinationSchemaResponse = z.infer<typeof DestinationSchemaResponseSchema>;
 
-/** POST /v1/projects/:projectId/source-schema/refresh — no body. */
+/**
+ * POST /v1/projects/:projectId/source-schema/refresh — no body. Async: the
+ * worker re-parses and writes a new snapshot; the response confirms the
+ * enqueue. Idempotent: re-calling for the same batch is a no-op (BullMQ
+ * dedupes by `upload-processing-<batchId>`).
+ */
 export const RefreshSourceSchemaResponseSchema = z.object({
-  snapshotId: z.string().uuid(),
-  version: z.number().int(),
+  batchId: z.string().uuid(),
+  status: z.literal("queued"),
 });
 export type RefreshSourceSchemaResponse = z.infer<typeof RefreshSourceSchemaResponseSchema>;
