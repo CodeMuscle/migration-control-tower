@@ -8,7 +8,9 @@ import { HealthController } from "./health/health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { IngestionModule } from "./ingestion/ingestion.module.js";
 import { IntrospectController } from "./introspect/introspect.controller.js";
+import { MappingModule } from "./mapping/mapping.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
+import { SchemaRegistryModule } from "./schema-registry/schema-registry.module.js";
 import { TenantModule } from "./tenant/tenant.module.js";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -38,6 +40,8 @@ const isDev = process.env.NODE_ENV !== "production";
     TenantModule,
     ProjectsModule,
     IngestionModule,
+    SchemaRegistryModule,
+    MappingModule,
   ],
   controllers: [HealthController, IntrospectController],
 })

@@ -23,6 +23,7 @@ let container: StartedPostgreSqlContainer;
 // Loaded dynamically AFTER DATABASE_URL points at the container.
 let db: typeof import("@migrationtower/db");
 let ProjectsService: typeof import("../dist/projects/projects.service.js").ProjectsService;
+let MappingService: typeof import("../dist/mapping/mapping.service.js").MappingService;
 
 const noopLogger = {
   info() {},
@@ -67,6 +68,7 @@ beforeAll(async () => {
 
   db = await import("@migrationtower/db");
   ({ ProjectsService } = await import("../dist/projects/projects.service.js"));
+  ({ MappingService } = await import("../dist/mapping/mapping.service.js"));
 
   // Minimal fixtures: two tenants, one user each (FK targets for
   // ownerUserId/changedBy/actorUserId).
@@ -167,6 +169,200 @@ describe("stage state machine (server-enforced)", () => {
       "req",
     );
     expect(blocked.status).toBe("blocked");
+  });
+});
+
+describe("mapping publish + diff workflow", () => {
+  const tenantC = randomUUID();
+  const userC = randomUUID();
+  const projectC = randomUUID();
+  const snapshotC = randomUUID();
+  const ctxC = { tenantId: tenantC, userId: userC, roles: ["owner"] };
+
+  function mappingServiceFor(tenantId: string) {
+    const prismaStub = {
+      base: db.prisma,
+      tenant: db.prismaForTenant(tenantId),
+    } as unknown as ConstructorParameters<typeof MappingService>[0];
+    return new MappingService(prismaStub, noopEvents, noopLogger);
+  }
+
+  beforeAll(async () => {
+    await db.prisma.tenant.create({
+      data: {
+        id: tenantC,
+        name: "Tenant C",
+        slug: "tenant-c",
+        plan: "growth",
+        status: "active",
+        primaryRegion: "ap-south-1",
+      },
+    });
+    await db.prisma.user.create({
+      data: { id: userC, email: "c@example.com", fullName: "User C", status: "active" },
+    });
+    await db.prisma.migrationProject.create({
+      data: {
+        id: projectC,
+        tenantId: tenantC,
+        name: "Map",
+        customerName: "C",
+        projectCode: "MAP-001",
+        status: "draft",
+        currentStage: "mapping",
+        migrationType: "file",
+        targetEnvironment: "sandbox",
+        targetProductType: "crm",
+        ownerUserId: userC,
+      },
+    });
+    // Build the FK chain the worker normally writes: data_source →
+    // source_upload → source_batch → source_schema_snapshot.
+    const dataSourceC = randomUUID();
+    const uploadC = randomUUID();
+    const batchC = randomUUID();
+    await db.prisma.dataSource.create({
+      data: {
+        id: dataSourceC,
+        tenantId: tenantC,
+        projectId: projectC,
+        sourceType: "csv",
+        name: "fixtures.csv",
+        status: "uploaded",
+      },
+    });
+    await db.prisma.sourceUpload.create({
+      data: {
+        id: uploadC,
+        tenantId: tenantC,
+        projectId: projectC,
+        dataSourceId: dataSourceC,
+        objectKey: `tenants/${tenantC}/projects/${projectC}/uploads/${uploadC}/fixtures.csv`,
+        originalFilename: "fixtures.csv",
+        mimeType: "text/csv",
+        sizeBytes: BigInt(0),
+        checksumSha256: "",
+        uploadStatus: "uploaded",
+        uploadedBy: userC,
+        uploadedAt: new Date(),
+      },
+    });
+    await db.prisma.sourceBatch.create({
+      data: {
+        id: batchC,
+        tenantId: tenantC,
+        projectId: projectC,
+        dataSourceId: dataSourceC,
+        sourceUploadId: uploadC,
+        batchType: "initial",
+        status: "parsed",
+      },
+    });
+    await db.prisma.sourceSchemaSnapshot.create({
+      data: {
+        id: snapshotC,
+        tenantId: tenantC,
+        projectId: projectC,
+        batchId: batchC,
+        version: 1,
+        detectedFormat: "csv",
+        headerRowIndex: 0,
+        rowSampleCount: 2,
+        schemaJson: {
+          columns: [
+            { fieldKey: "email", dataType: "string", nullable: false },
+            { fieldKey: "name", dataType: "string", nullable: false },
+            { fieldKey: "company", dataType: "string", nullable: true },
+          ],
+        },
+      },
+    });
+    // Global destination schema for CRM (mirrors the demo seed).
+    const existing = await db.prisma.destinationSchema.findFirst({
+      where: { tenantId: null, productType: "crm", status: "active" },
+    });
+    if (!existing) {
+      await db.prisma.destinationSchema.create({
+        data: {
+          tenantId: null,
+          productType: "crm",
+          version: "1",
+          status: "active",
+          schemaJson: {
+            fields: [
+              { fieldKey: "email", dataType: "string", isRequired: true },
+              { fieldKey: "fullName", dataType: "string", isRequired: true },
+              { fieldKey: "company", dataType: "string", isRequired: false },
+              { fieldKey: "status", dataType: "enum", isRequired: true },
+            ],
+          },
+        },
+      });
+    }
+  });
+
+  it("publish v1, edit drafts, publish v2, diff returns the expected delta", async () => {
+    const svc = mappingServiceFor(tenantC);
+    const initial = await svc.getMappings(ctxC, projectC);
+    expect(initial.destinationSchemaId).toBeTruthy();
+    expect(initial.sourceSnapshotId).toBe(snapshotC);
+    const destSchemaId = initial.destinationSchemaId!;
+
+    // v1 drafts: two direct mappings.
+    await svc.upsertMappings(
+      ctxC,
+      projectC,
+      {
+        sourceSnapshotId: snapshotC,
+        destinationSchemaId: destSchemaId,
+        mappings: [
+          { sourceFieldKey: "email", destinationFieldKey: "email", mappingType: "direct" },
+          { sourceFieldKey: "name", destinationFieldKey: "fullName", mappingType: "direct" },
+        ],
+      },
+      "req-v1",
+    );
+    let view = await svc.getMappings(ctxC, projectC);
+    const v1Fingerprint = view.drafts.map((d) => d.updatedAt).reduce((a, b) => (a > b ? a : b));
+    const v1 = await svc.publish(ctxC, projectC, v1Fingerprint, {}, "req-pub1");
+    expect(v1.versionNumber).toBe(1);
+
+    // Edit drafts: remove email, change fullName to transform (uppercase), add company.
+    const upperRule = view.transformRules.find((r) => r.ruleKey === "uppercase");
+    expect(upperRule).toBeTruthy();
+    await svc.upsertMappings(
+      ctxC,
+      projectC,
+      {
+        sourceSnapshotId: snapshotC,
+        destinationSchemaId: destSchemaId,
+        mappings: [
+          {
+            sourceFieldKey: "name",
+            destinationFieldKey: "fullName",
+            mappingType: "transform",
+            transformRuleId: upperRule!.id,
+          },
+          { sourceFieldKey: "company", destinationFieldKey: "company", mappingType: "direct" },
+        ],
+      },
+      "req-v2",
+    );
+    view = await svc.getMappings(ctxC, projectC);
+    const v2Fingerprint = view.drafts.map((d) => d.updatedAt).reduce((a, b) => (a > b ? a : b));
+    const v2 = await svc.publish(ctxC, projectC, v2Fingerprint, {}, "req-pub2");
+    expect(v2.versionNumber).toBe(2);
+
+    // Diff v1 → v2.
+    const diff = await svc.diffVersions(ctxC, projectC, { from: 1, to: 2 });
+    expect(diff.fromVersion).toBe(1);
+    expect(diff.toVersion).toBe(2);
+    expect(diff.added.map((e) => e.destinationFieldKey).sort()).toEqual(["company"]);
+    expect(diff.removed.map((e) => e.destinationFieldKey).sort()).toEqual(["email"]);
+    expect(diff.changed.map((e) => e.destinationFieldKey).sort()).toEqual(["fullName"]);
+    const fullNameChange = diff.changed.find((e) => e.destinationFieldKey === "fullName");
+    expect(fullNameChange?.from?.mappingType).toBe("direct");
+    expect(fullNameChange?.to?.mappingType).toBe("transform");
   });
 });
 
