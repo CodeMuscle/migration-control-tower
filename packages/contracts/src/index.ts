@@ -11,6 +11,7 @@ export * from "./tenant.js";
 export * from "./job.js";
 export * from "./events.js";
 export * from "./enums.js";
+export * from "./queues.js";
 
 // Module DTO groups, namespaced to keep request/response names unambiguous.
 export * as IdentityDTO from "./modules/identity.js";

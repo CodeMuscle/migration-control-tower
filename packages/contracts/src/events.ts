@@ -23,6 +23,7 @@ export const DOMAIN_EVENTS = [
   "source.upload.registered",
   "source.upload.completed",
   "source.batch.created",
+  "source.batch.progress",
   "source.batch.parsed",
   "source.batch.failed",
   // Module 5 — Schema Registry

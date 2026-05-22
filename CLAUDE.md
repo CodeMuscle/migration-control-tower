@@ -50,8 +50,8 @@ Node 20 LTS, Mailhog for local mail.
 **Realized choices (Module 2).** Where the matrix left alternatives open, these
 are now decided and in code:
 
-- **ORM = Prisma 5** in `packages/db` (Postgres, `previewFeatures =
-["multiSchema"]`, single `public` schema for v1). Schema mirrors
+- **ORM = Prisma 6** in `packages/db` (Postgres, `multiSchema` is GA in
+  v6.7+ so no preview flag; single `public` schema for v1). Schema mirrors
   `database-blueprint.docx` Modules 1–6.
 - **Runtime validation = Zod** in `packages/contracts` — the envelope, DTOs,
   enums, job/event envelopes are Zod schemas; TS types are `z.infer`red.
@@ -83,6 +83,28 @@ are now decided and in code:
   `.eslintrc.cjs` disables `consistent-type-imports` for the same reason.
 - New env: `CLERK_SECRET_KEY` (required for authed routes), `LOG_LEVEL`,
   `OTEL_SERVICE_NAME` (see `.env.example`).
+
+**Realized choices (Module 6).** `services/worker-validation` + the shared
+`services/common`:
+
+- **Worker = NestJS standalone** (no HTTP) on Fastify-less Nest. The BullMQ
+  workers are attached in `OnApplicationBootstrap` and drained in
+  `OnApplicationShutdown` (Nest fires those on SIGTERM/SIGINT once
+  `enableShutdownHooks()` is called).
+- **Shared queue layer** lives in `services/common`
+  (`@migrationtower/services-common`): `createBaseWorker()` factory wraps
+  every queue with the same patterns — 3-attempt exponential backoff, DLQ on
+  terminal failure (`<queue>-dlq` sibling), idempotency short-circuit (Redis
+  SETNX with 7-day TTL), and `ctx.progress(rows)` for chunked progress.
+- **Queue payload types** are in `@migrationtower/contracts/queues.ts`
+  (`UploadProcessingJobSchema`) so producer (API) and consumer (worker)
+  share one source of truth.
+- **Cross-process progress → SSE**: workers publish progress via
+  `job.updateProgress` (BullMQ → Redis pub/sub). The API's `QueueEventsBridge`
+  re-emits these as `source.batch.progress` / `source.batch.parsed` /
+  `source.batch.failed` onto the in-process `EventBus`, and the SSE handler
+  streams them to the client.
+- New env for the worker: `REDIS_URL`, `S3_*` (same as the API), `OTEL_SERVICE_NAME=worker-validation`.
 
 ## Repository layout
 
