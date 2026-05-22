@@ -10,12 +10,12 @@
 //   - UUID PKs (app-generated, @db.Uuid). TIMESTAMPTZ for time. JSONB for docs.
 //   - Emails are CITEXT (citext extension created in the initial migration).
 //
-// multiSchema is enabled for future per-module schema separation; v1 keeps a
-// single `public` schema (every model is @@schema("public")).
+// multiSchema is GA in Prisma 6.7+ (no preview flag needed); v1 keeps a
+// single `public` schema (every model is @@schema("public")) but the
+// `schemas` directive lets us split modules out later without a migration.
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  provider = "prisma-client-js"
 }
 
 datasource db {

@@ -1,8 +1,22 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "@migrationtower/tsconfig/node-service.json",
+  "comment": "Mirrors services/api: NestJS DI needs emitDecoratorMetadata + value imports, so verbatimModuleSyntax/isolatedModules are off; ESM kept so we can import the ESM-only workspace packages on Node 20+.",
   "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": false,
+    "strictPropertyInitialization": false,
+    "noUncheckedIndexedAccess": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

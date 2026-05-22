@@ -200,7 +200,7 @@ export class IngestionService {
       batchId: batch.id,
       uploadId: upload.id,
       objectKey: upload.objectKey,
-      sourceType: dataSource?.sourceType ?? "csv",
+      sourceType: (dataSource?.sourceType ?? "csv") as SourceType,
     });
 
     const occurredAt = new Date().toISOString();

@@ -2,6 +2,59 @@
 
 ## [Unreleased]
 
+- feat(worker,api,contracts): Module 6 — BullMQ worker layer + upload parse
+  - **`services/common`** (`@migrationtower/services-common`): shared
+    `createBaseWorker()` factory implementing the patterns the brief calls
+    out — 3-attempt exponential backoff, terminal-failure DLQ
+    (`<queue>-dlq`), Redis-SETNX idempotency short-circuit (7-day TTL), and
+    `ctx.progress(rows)` for chunked progress. `redisConnection()` helper
+    derives a BullMQ `ConnectionOptions` from `REDIS_URL`.
+  - **`services/worker-validation`** rewritten from placeholder to a real
+    **NestJS standalone** app (no HTTP). `OnApplicationBootstrap` attaches
+    BullMQ Workers for `upload-processing` and `validation` (stub); SIGTERM
+    drains them via `OnApplicationShutdown`. Same Pino + OpenTelemetry
+    plumbing as the API.
+  - **upload-processing processor** (the parse half of LLD §7): S3 stream →
+    temp file → format detect (csv/xlsx/json, ext + content sniff) → stream
+    CSV via `csv-parse` (sample first 100 rows; count + emit progress every
+    1000 rows for the rest) → per-column type inference
+    (boolean → date → number → enum-if-cardinality≤20 → string) →
+    `source_schema_snapshots` row written with `version = max+1` per project
+    (inside a transaction so concurrent batches don't collide) → batch
+    `row_count` + `finished_at` + `status='parsed'`. Determinate failures
+    throw `UnrecoverableError` so they don't burn retries; transient
+    failures use the default backoff.
+  - **Contracts**: `UploadProcessingJobSchema` + `UploadProcessingResult`
+    pulled into `@migrationtower/contracts/queues.ts` as the single source
+    of truth for producer (API) and consumer (worker). Added
+    `source.batch.progress` to `DOMAIN_EVENTS`.
+  - **API → SSE bridge**: new `QueueEventsBridge` (singleton, OnAppBootstrap)
+    subscribes to BullMQ `QueueEvents` for `upload-processing` and lifts
+    `progress` / `completed` / `failed` onto the in-process `EventBus` keyed
+    by `batchId` (extracted from `jobId = upload-processing-<batchId>`). The
+    SSE handler now streams `source.batch.progress` alongside
+    `created/parsed/failed`. API's `UploadQueue` refactored to use the
+    shared types + `DEFAULT_JOB_OPTIONS` from services-common.
+  - **Tests**: new Vitest integration test against real Postgres
+    (testcontainers) + mocked S3 (`aws-sdk-client-mock`). A 5000-row CSV
+    runs through the processor; asserts row_count=5000, snapshot v1 created,
+    per-column types are `id:number / email:string / active:boolean /
+joined_at:date / tier:enum[bronze,gold,silver]`, batch transitions to
+    `parsed`, and progress ticks fire every 1000 rows. Passes. Existing API
+    tests still 3/3.
+
+- chore(db): upgrade Prisma 5.22 → 6.19
+  - Silences the VS Code Prisma extension's "`multiSchema` preview deprecated"
+    advisory — multiSchema is GA in Prisma 6.7+, so the `previewFeatures`
+    entry is gone. `schemas = ["public"]` and `@@schema("public")` continue
+    to work without any flag.
+  - **Prisma 7 deferred:** v7's preinstall hard-blocks Node 23 (allows only
+    20.19+, 22.12+, 24+). The "`url` no longer supported" IDE warning is a
+    v7-only language-server advisory — it doesn't affect the v6 CLI/runtime.
+    Address when the project's Node version targets a v7-allowed line.
+  - Migrations chain unchanged; integration tests still 3/3; `seed` runs
+    clean against the dev DB.
+
 - feat(api,db): Source Ingestion (blueprint Module 4)
   - **S3/MinIO** (`@aws-sdk/client-s3` + presigner): 15-min presigned PUT,
     HEAD verification, key pattern
@@ -87,7 +140,8 @@
     ids.
 
 - feat(db,contracts,ui): Module 2 — database layer + shared contracts
-  - **packages/db**: Prisma 5 (`multiSchema` preview, single `public` schema).
+  - **packages/db**: Prisma (`multiSchema`, single `public` schema; preview
+    flag dropped on the v6 upgrade — see above).
     Models for all 20 tables of blueprint Modules 1–6 (Identity, Tenant,
     Migration Projects, Source Ingestion, Schema Registry, Mapping) — UUID PKs
     (`@db.Uuid`), CITEXT emails, TIMESTAMPTZ, JSONB, every unique/index from

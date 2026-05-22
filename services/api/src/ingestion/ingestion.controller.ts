@@ -16,6 +16,7 @@ import { IngestionService } from "./ingestion.service.js";
 
 const BATCH_EVENTS = [
   "source.batch.created",
+  "source.batch.progress",
   "source.batch.parsed",
   "source.batch.failed",
 ] as const;
