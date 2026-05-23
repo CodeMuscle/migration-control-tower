@@ -2,6 +2,89 @@
 
 ## [Unreleased]
 
+- chore(db): upgrade Prisma 6.19 → 7.8 (driver-adapter pattern)
+  - `url` removed from `schema.prisma`. CLI connection config lives in
+    `packages/db/prisma.config.ts` (`datasource.url = env("DATABASE_URL")`,
+    seed config also moved here per v7); runtime `PrismaClient` is
+    constructed with `@prisma/adapter-pg` backed by a shared `pg.Pool` in
+    `src/index.ts`. New deps: `@prisma/adapter-pg`, `pg`, `dotenv`,
+    `@types/pg`.
+  - Base `prisma` is now a lazy `Proxy` so `disconnectAll()` can fully
+    teardown + rebuild between testcontainer spec files (otherwise the
+    second file in the same vitest process tries to reuse a closed Pool
+    and fails with "Cannot use a pool after calling end on the pool").
+  - New `disconnectAll()` export — `$disconnect()` doesn't close the
+    adapter's underlying `pg.Pool` on its own; tests now call this in
+    `afterAll` to avoid "terminating connection due to administrator
+    command" errors when testcontainers stop.
+  - **Node requirement** bumped: Prisma 7 hard-blocks Node 23 in its
+    preinstall; project Node target is now **22.12+ or 24+** (we use
+    `nvm use 22` locally). Recorded in `CLAUDE.md`.
+  - Silences both the VS Code Prisma extension's v7 advisories
+    (`multiSchema preview deprecated`, `url no longer supported`). All
+    integration tests still green (API 4/4, worker 2/2).
+
+- feat(api,worker,contracts,db): Validation + Issue Management (LLD §7–§8)
+  - **Schema** (new migration `add_validation`): `validation_runs` (run
+    lifecycle + denormalised per-severity counts) and `validation_issues`
+    (append-only finding rows; grouped at query time by
+    `destination_field_key + rule_key`, no separate `issue_groups` table per
+    the brief). Both tenant-scoped with the standard FK + indexes — including
+    `(tenantId, projectId, status, createdAt desc)` for the project issues
+    feed and `(tenantId, runId, severity)` for `getRun` counts.
+  - **Contracts**: `ValidationDTO` (run create/get/summary, issue list,
+    PATCH + bulk-resolve), enums (`IssueSeverity`, `IssueStatus`,
+    `ValidationRunStatus`, `ValidationRuleKey`), and the `ValidationJob` /
+    `ValidationResult` queue schemas (blueprint Module 6 "validation-ready
+    handoff contract" + server-issued `runId`). New `DOMAIN_EVENTS`:
+    `validation.started/progress/completed/failed`, `issues.generated`,
+    `issue.resolved`, `issue.ignored`.
+  - **API**:
+    - `POST /v1/migration-projects/:projectId/validate` — validates batch +
+      mapping version belong to the project, creates `validation_runs`
+      `status='queued'`, enqueues the `validation` BullMQ job (jobId =
+      `validation-<runId>` for dedupe + bridge routing). Returns `{ runId }`.
+    - `GET /v1/validation-runs/:runId` — status + denormalised counts +
+      timings.
+    - `GET /v1/validation-runs/:runId/summary` — issues grouped by
+      `(destinationFieldKey, ruleKey, severity)` with 5 sample issues per
+      group.
+    - `GET /v1/validation-runs/:runId/events` — **SSE** stream: emits a
+      snapshot of the run on connect, then streams
+      `validation.started/progress/completed/failed` + `issues.generated`
+      bridged from the worker via BullMQ QueueEvents.
+    - `GET /v1/migration-projects/:projectId/issues` — keyset cursor
+      paginated; filters: `status`, `severity`, `destinationFieldKey`,
+      `runId`.
+    - `PATCH /v1/issues/:id` — resolve / ignore + note. Emits
+      `issue.resolved` / `issue.ignored`.
+    - `POST /v1/issues/bulk-resolve` — filter (projectId required) →
+      `updateMany`; returns count. Same events.
+  - **Worker** (`services/worker-validation`): real `ValidationProcessor`
+    replaces the stub. Loads the mapping version + destination schema +
+    upload, streams the S3 object → temp file → `csv-parse`. The pure-
+    function rule engine (`rule-engine.ts`) implements all v1 rules:
+    `required`, `type_mismatch`, `regex`, `enum`, `date_format`
+    (pattern + `Date.parse` so `2024-13-99` doesn't slip through),
+    `uniqueness` (intra-batch), `foreign_key_exists` (intra-batch, two-pass
+    so the target set is complete). Issues flush to DB every 1 000 rows
+    along with a `job.updateProgress`. Run is finalised with status +
+    counts + timings. Determinate failures throw `UnrecoverableError`
+    (DLQ on first attempt) and record `status='failed'` + `errorMessage`
+    on the run row.
+  - **QueueEventsBridge**: extended to also subscribe to the `validation`
+    queue and re-emit `progress` / `completed` (+ `issues.generated`
+    derived from the returnvalue counts) / `failed` onto the EventBus.
+  - **Integration test** (worker): a 10 000-row CSV with five deliberately
+    broken column classes (`required` via 100 empty emails, `uniqueness`
+    via 50 duplicate ids, `enum` via 30 bad tiers, `date_format` via 20
+    `2024-13-99`s, `regex` via 40 `USA`s vs `^[A-Z]{2}$`). Asserts the
+    exact per-rule counts on the strict run, then runs again against a
+    second mapping version with `isRequiredOverride=false` on `email` and
+    asserts the "required" group vanishes (100 → 0) while the others
+    stay put. Existing 1 worker test + 4 API tests still pass. **3 / 3
+    test files passing.**
+
 - feat(api,contracts): Schema Registry + Mapping (blueprint Modules 5 & 6)
   - **Schema Registry**:
     - `GET /v1/projects/:projectId/source-schema` — latest non-failed source

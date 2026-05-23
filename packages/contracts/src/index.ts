@@ -20,3 +20,4 @@ export * as ProjectsDTO from "./modules/projects.js";
 export * as IngestionDTO from "./modules/ingestion.js";
 export * as SchemaRegistryDTO from "./modules/schema-registry.js";
 export * as MappingDTO from "./modules/mapping.js";
+export * as ValidationDTO from "./modules/validation.js";
