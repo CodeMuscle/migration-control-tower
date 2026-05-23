@@ -151,7 +151,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   s3Mock?.restore();
-  await db?.prisma.$disconnect();
+  await db?.disconnectAll();
   await container?.stop();
 });
 

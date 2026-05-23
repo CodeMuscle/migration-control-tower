@@ -4,9 +4,14 @@
  *
  *   pnpm --filter @migrationtower/db seed
  */
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
 
-const prisma = new PrismaClient();
+// Prisma 7 driver adapter (schema has no `url` anymore).
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 // The demo operator's email. Override to match your Clerk user's primary
 // email so the AuthGuard (Clerk email → local user) resolves to this seeded

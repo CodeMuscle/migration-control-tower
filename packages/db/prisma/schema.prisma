@@ -10,9 +10,14 @@
 //   - UUID PKs (app-generated, @db.Uuid). TIMESTAMPTZ for time. JSONB for docs.
 //   - Emails are CITEXT (citext extension created in the initial migration).
 //
-// multiSchema is GA in Prisma 6.7+ (no preview flag needed); v1 keeps a
-// single `public` schema (every model is @@schema("public")) but the
-// `schemas` directive lets us split modules out later without a migration.
+// multiSchema is GA in Prisma 6.7+ (no preview flag); v1 keeps a single
+// `public` schema (every model is @@schema("public")) but the `schemas`
+// directive lets us split modules out later without a migration.
+//
+// Prisma 7: the datasource no longer carries `url`. Connection config lives
+// in `packages/db/prisma.config.ts` (migrate/studio adapters) and in
+// `packages/db/src/index.ts` (PrismaClient driver adapter — @prisma/adapter-pg
+// with a shared `pg` Pool).
 
 generator client {
   provider = "prisma-client-js"
@@ -20,7 +25,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
   schemas  = ["public"]
 }
 
@@ -121,6 +125,8 @@ model Tenant {
   mappingVersions     MappingVersion[]
   mappingTemplates    MappingTemplate[]
   idempotencyKeys     IdempotencyKey[]
+  validationRuns      ValidationRun[]
+  validationIssues    ValidationIssue[]
 
   @@map("tenants")
   @@schema("public")
@@ -489,5 +495,74 @@ model MappingTemplate {
 
   @@index([tenantId, targetProductType])
   @@map("mapping_templates")
+  @@schema("public")
+}
+
+// ──────────────────────── Module 7 — Validation ────────────────────────
+//
+// validation_runs: one row per POST /validate. The worker updates it as the
+// run progresses (queued → running → completed | failed). Per-severity
+// counts are denormalised so /v1/validation-runs/:id can answer without
+// scanning validation_issues every time.
+//
+// validation_issues: append-only per-row findings. Status mutates
+// (open → resolved | ignored) on the issue endpoints. Grouping (by
+// destination_field_key + rule_key) is done at query time — no separate
+// issue_groups table in v1 per the brief.
+model ValidationRun {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  projectId           String    @map("project_id") @db.Uuid
+  batchId             String    @map("batch_id") @db.Uuid
+  mappingVersionId    String    @map("mapping_version_id") @db.Uuid
+  sourceSnapshotId    String    @map("source_snapshot_id") @db.Uuid
+  destinationSchemaId String    @map("destination_schema_id") @db.Uuid
+  status              String    @db.VarChar(20) // queued, running, completed, failed
+  rowsScanned         Int       @default(0) @map("rows_scanned")
+  errorCount          Int       @default(0) @map("error_count")
+  warningCount        Int       @default(0) @map("warning_count")
+  infoCount           Int       @default(0) @map("info_count")
+  errorMessage        String?   @map("error_message") @db.Text
+  triggeredBy         String    @map("triggered_by") @db.Uuid
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt          DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  issues ValidationIssue[]
+
+  @@index([tenantId, projectId, createdAt(sort: Desc)])
+  @@map("validation_runs")
+  @@schema("public")
+}
+
+model ValidationIssue {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  runId               String    @map("run_id") @db.Uuid
+  projectId           String    @map("project_id") @db.Uuid
+  batchId             String    @map("batch_id") @db.Uuid
+  severity            String    @db.VarChar(20) // error, warning, info
+  ruleKey             String    @map("rule_key") @db.VarChar(40)
+  rowIndex            Int       @map("row_index")
+  sourceFieldKey      String?   @map("source_field_key") @db.VarChar(100)
+  destinationFieldKey String    @map("destination_field_key") @db.VarChar(100)
+  message             String    @db.Text
+  sampleValue         String?   @map("sample_value") @db.Text
+  status              String    @default("open") @db.VarChar(20) // open, resolved, ignored
+  resolutionNote      String?   @map("resolution_note") @db.Text
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy          String?   @map("resolved_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  run    ValidationRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, projectId, status, createdAt(sort: Desc)])
+  @@index([tenantId, runId, severity])
+  @@index([tenantId, projectId, destinationFieldKey, ruleKey])
+  @@map("validation_issues")
   @@schema("public")
 }

@@ -50,8 +50,15 @@ Node 20 LTS, Mailhog for local mail.
 **Realized choices (Module 2).** Where the matrix left alternatives open, these
 are now decided and in code:
 
-- **ORM = Prisma 6** in `packages/db` (Postgres, `multiSchema` is GA in
-  v6.7+ so no preview flag; single `public` schema for v1). Schema mirrors
+- **ORM = Prisma 7** in `packages/db` (Postgres). The schema no longer
+  carries `url`: CLI connection config lives in `packages/db/prisma.config.ts`
+  (`datasource.url = env("DATABASE_URL")`); runtime `PrismaClient` uses the
+  `@prisma/adapter-pg` driver adapter backed by a shared `pg` Pool (see
+  `packages/db/src/index.ts`). `multiSchema` is GA — no preview flag —
+  single `public` schema for v1. The base client is a lazy `Proxy` so
+  `disconnectAll()` can fully tear down + rebuild between
+  testcontainer-spec files. **Node ≥ 22.12 or ≥ 24** required (Prisma 7's
+  preinstall blocks Node 23). Schema mirrors
   `database-blueprint.docx` Modules 1–6.
 - **Runtime validation = Zod** in `packages/contracts` — the envelope, DTOs,
   enums, job/event envelopes are Zod schemas; TS types are `z.infer`red.

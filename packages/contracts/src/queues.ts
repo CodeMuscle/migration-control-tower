@@ -12,6 +12,32 @@ export const UPLOAD_PROCESSING_QUEUE = "upload-processing" as const;
 export const VALIDATION_QUEUE = "validation" as const;
 
 /**
+ * `validation` job (blueprint Module 6 → "Validation-ready handoff contract"
+ * + a server-issued `runId` so the worker can update the right
+ * `validation_runs` row).
+ */
+export const ValidationJobSchema = z.object({
+  runId: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  batchId: z.string().uuid(),
+  sourceSnapshotId: z.string().uuid(),
+  destinationSchemaId: z.string().uuid(),
+  mappingVersionId: z.string().uuid(),
+  triggeredBy: z.string().uuid(),
+});
+export type ValidationJob = z.infer<typeof ValidationJobSchema>;
+
+export const ValidationResultSchema = z.object({
+  runId: z.string().uuid(),
+  rowsScanned: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  infoCount: z.number().int().nonnegative(),
+});
+export type ValidationResult = z.infer<typeof ValidationResultSchema>;
+
+/**
  * `upload-processing` job (blueprint Module 4 → "Queue contracts"). Field
  * order and names are verbatim from the blueprint.
  */

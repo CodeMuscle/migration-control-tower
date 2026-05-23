@@ -10,24 +10,76 @@
  *                            point CLAUDE.md → Coding conventions §1 requires:
  *                            domain code must never hand-write tenant filters.
  */
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
 
 export { Prisma, PrismaClient } from "@prisma/client";
 export type * from "@prisma/client";
 
+// Prisma 7: the schema no longer has `url`; the runtime client talks to the
+// DB through a driver adapter (here @prisma/adapter-pg backed by a shared
+// `pg` Pool). The client + pool are LAZILY built so `disconnectAll()` can
+// fully tear them down and the next access rebuilds — required by the
+// per-file Postgres testcontainer pattern (each spec stops its container in
+// afterAll and the next spec spins a fresh one in the same vitest process).
 const globalForPrisma = globalThis as unknown as {
-  __mt_prisma__?: PrismaClient;
+  __mt_pool__?: Pool;
+  __mt_client__?: PrismaClient;
 };
 
-/** Base client (singleton — dev hot-reload safe). Not tenant-scoped. */
-export const prisma: PrismaClient =
-  globalForPrisma.__mt_prisma__ ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+function getPool(): Pool {
+  if (!globalForPrisma.__mt_pool__) {
+    globalForPrisma.__mt_pool__ = new Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+  }
+  return globalForPrisma.__mt_pool__;
+}
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.__mt_prisma__ = prisma;
+function getClient(): PrismaClient {
+  if (!globalForPrisma.__mt_client__) {
+    globalForPrisma.__mt_client__ = new PrismaClient({
+      adapter: new PrismaPg(getPool()),
+      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    });
+  }
+  return globalForPrisma.__mt_client__;
+}
+
+/**
+ * Base client. Backed by a Proxy so it survives `disconnectAll()`/rebuild
+ * cycles — every property access lazily resolves the current underlying
+ * client. Not tenant-scoped.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getClient() as unknown as Record<string | symbol, unknown>;
+    const v = client[prop as string | symbol];
+    return typeof v === "function" ? (v as (...args: unknown[]) => unknown).bind(client) : v;
+  },
+}) as PrismaClient;
+
+/**
+ * Symmetric shutdown for the v7 adapter pattern: `$disconnect()` releases
+ * Prisma's adapter resources but does NOT close the underlying `pg` Pool,
+ * so it must be ended explicitly (otherwise tests/test-containers see
+ * "terminating connection due to administrator command" on teardown). The
+ * client + pool slots are cleared so a subsequent access rebuilds against
+ * whatever `DATABASE_URL` is current — important between testcontainer
+ * spec files.
+ */
+export async function disconnectAll(): Promise<void> {
+  const client = globalForPrisma.__mt_client__;
+  if (client) {
+    await client.$disconnect();
+    globalForPrisma.__mt_client__ = undefined;
+  }
+  const pool = globalForPrisma.__mt_pool__;
+  if (pool) {
+    await pool.end();
+    globalForPrisma.__mt_pool__ = undefined;
+  }
 }
 
 /**

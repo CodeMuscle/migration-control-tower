@@ -101,7 +101,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.prisma.$disconnect();
+  await db?.disconnectAll();
   await container?.stop();
 });
 

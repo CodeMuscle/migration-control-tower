@@ -113,3 +113,24 @@ export type FieldMappingStatus = z.infer<typeof FieldMappingStatusSchema>;
 
 export const MappingVersionStatusSchema = z.enum(["published", "deprecated"]);
 export type MappingVersionStatus = z.infer<typeof MappingVersionStatusSchema>;
+
+// Module 7 — Validation
+export const ValidationRunStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
+export type ValidationRunStatus = z.infer<typeof ValidationRunStatusSchema>;
+
+export const IssueSeveritySchema = z.enum(["error", "warning", "info"]);
+export type IssueSeverity = z.infer<typeof IssueSeveritySchema>;
+
+export const IssueStatusSchema = z.enum(["open", "resolved", "ignored"]);
+export type IssueStatus = z.infer<typeof IssueStatusSchema>;
+
+export const ValidationRuleKeySchema = z.enum([
+  "required",
+  "type_mismatch",
+  "regex",
+  "enum",
+  "foreign_key_exists",
+  "uniqueness",
+  "date_format",
+]);
+export type ValidationRuleKey = z.infer<typeof ValidationRuleKeySchema>;

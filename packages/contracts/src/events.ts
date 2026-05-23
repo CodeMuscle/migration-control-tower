@@ -34,6 +34,14 @@ export const DOMAIN_EVENTS = [
   "mapping.draft.updated",
   "mapping.version.published",
   "mapping.template.applied",
+  // Module 7 — Validation
+  "validation.started",
+  "validation.progress",
+  "validation.completed",
+  "validation.failed",
+  "issues.generated",
+  "issue.resolved",
+  "issue.ignored",
 ] as const;
 
 export const DomainEventNameSchema = z.enum(DOMAIN_EVENTS);
