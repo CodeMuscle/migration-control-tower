@@ -1,25 +1,26 @@
 {
-  "name": "@migrationtower/control-plane-web",
-  "version": "0.0.0",
+  "name": "control-plane-web",
+  "version": "0.1.0",
   "private": true,
-  "description": "Internal control-plane web app (placeholder; framework added in its module).",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch",
-    "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
-    "type-check": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"@migrationtower/control-plane-web: no tests yet\"",
-    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@migrationtower/tsconfig": "workspace:*",
-    "@types/node": "20",
-    "typescript": "^5.4.5"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
