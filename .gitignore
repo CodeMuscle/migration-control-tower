@@ -39,3 +39,6 @@ infra/docker/data/
 
 # Worktrees
 .worktrees/
+
+#LLM
+CLAUDE.md
