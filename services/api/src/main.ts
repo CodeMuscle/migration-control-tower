@@ -30,6 +30,26 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(PinoLogger));
   app.enableShutdownHooks();
 
+  // Browsers calling the API from the control-plane / customer-portal need
+  // CORS. Dev = open for localhost; prod = read explicit allowlist via env.
+  const corsOrigins =
+    process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ??
+    (process.env.NODE_ENV === "production"
+      ? []
+      : ["http://localhost:3000", "http://localhost:3001"]);
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Tenant-Id",
+      "Idempotency-Key",
+      "X-Request-Id",
+    ],
+    exposedHeaders: ["X-Request-Id"],
+  });
+
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port, "0.0.0.0");
   app.get(PinoLogger).log(`API listening on http://0.0.0.0:${port}`);
