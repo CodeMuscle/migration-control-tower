@@ -9,7 +9,7 @@ import type {
   ProjectStatus,
   TenantContext,
 } from "@migrationtower/contracts";
-import { Prisma } from "@migrationtower/db";
+import { Prisma, PrismaClientKnownRequestError } from "@migrationtower/db";
 import { Injectable } from "@nestjs/common";
 import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
 
@@ -110,7 +110,7 @@ export class ProjectsService {
       );
       return toProject(project);
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
         throw new ApiException(
           "CONFLICT",
           `projectCode "${dto.projectCode}" already exists for this tenant`,

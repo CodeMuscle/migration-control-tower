@@ -16,6 +16,9 @@ import { Pool } from "pg";
 
 export { Prisma, PrismaClient } from "@prisma/client";
 export type * from "@prisma/client";
+// Prisma 7 moved the runtime error classes out of the `Prisma` namespace.
+// Re-export here so consumers stay on a single import surface.
+export { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 
 // Prisma 7: the schema no longer has `url`; the runtime client talks to the
 // DB through a driver adapter (here @prisma/adapter-pg backed by a shared
@@ -157,7 +160,16 @@ export function prismaForTenant(tenantId: string) {
     throw new Error("prismaForTenant: tenantId is required");
   }
 
-  return prisma.$extends({
+  // Prisma 7 quirk: when `prisma` is a Proxy (typed `as PrismaClient`), the
+  // generic plumbing on `$extends({ query: { $allModels: { $allOperations } } })`
+  // produces a return type where every model accessor narrows to `never`. The
+  // runtime extension still works fine — it's a type-inference regression
+  // from the v6→v7 upgrade combined with our lazy-Proxy base. We assert the
+  // result back to `PrismaClient` so consumers keep the full model surface
+  // (`scoped.migrationProject.findUnique(...)`, etc.), at the cost of losing
+  // the "this client is extended" tag at the type level — which we don't
+  // depend on anywhere.
+  const extended = prisma.$extends({
     name: "tenant-scope",
     query: {
       $allModels: {
@@ -196,7 +208,8 @@ export function prismaForTenant(tenantId: string) {
       },
     },
   });
+  return extended as unknown as PrismaClient;
 }
 
 /** The tenant-scoped client type, for typing repositories/services. */
-export type TenantPrismaClient = ReturnType<typeof prismaForTenant>;
+export type TenantPrismaClient = PrismaClient;

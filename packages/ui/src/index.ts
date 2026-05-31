@@ -1,10 +1,14 @@
 /**
- * @migrationtower/ui — Shared React design system: Tailwind preset +
- * shadcn/ui primitives. Apps import the preset in their tailwind.config and
- * `@migrationtower/ui/styles.css` once at the root.
+ * @migrationtower/ui — Shared React design system on Tailwind v4 + shadcn/ui.
+ *
+ * Apps consume this in two pieces:
+ *   1. `import "@migrationtower/ui/styles.css"` in the app's root layout
+ *      (registers Tailwind, shadcn tokens, dark variant, animation keyframes).
+ *   2. `import { Button } from "@migrationtower/ui"` for individual primitives.
+ *
+ * For Tailwind to actually generate classes for the primitives' source files,
+ * each consuming app's own globals.css must add an `@source` directive
+ * pointing at this package's src/ — see the app for the exact line.
  */
-export const PACKAGE_NAME = "@migrationtower/ui" as const;
-
 export { cn } from "./lib/cn.js";
 export { Button, buttonVariants, type ButtonProps } from "./components/button.js";
-export { default as tailwindPreset } from "./tailwind-preset.js";
